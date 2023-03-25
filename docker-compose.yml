@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: express-server
+    container_name: law-task-2-be
     ports:
       - "3010:3010"
     restart: always
