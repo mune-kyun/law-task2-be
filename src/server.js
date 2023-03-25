@@ -1,10 +1,16 @@
 const express = require("express");
+var bodyParser = require("body-parser");
 const { rabbitMQHandler } = require("./utils.js");
 const cors = require("cors");
 const app = express();
+app.use(express.json());
 const router = express.Router();
-const server = require("http").Server(app);
-const socketIO = require("socket.io")(server);
+const server = require("http").createServer(app);
+const socketIO = require("socket.io")(server, {
+  cors: {
+    origin: "*",
+  },
+});
 const amqp = require("amqplib/callback_api");
 const recvSocket = socketIO.of("/recv_back");
 
@@ -12,7 +18,6 @@ const port = 3010;
 const rabbitMQAddress = "amqp://35.209.178.149:5672";
 
 app.use(cors());
-app.use(express.json());
 
 app.use("/api", router);
 
@@ -52,10 +57,10 @@ router.route("/msg/init").post((req, res) => {
             q.queue,
             function (msg) {
               if (msg.content) {
-                console.log(" [x] %s", msg.content.toString());
-
+                const data = JSON.parse(msg.content.toString());
+                console.log("(receiv) message is: " + data.msg);
                 // sockv
-                recvSocket.emit("recv_back", result);
+                recvSocket.emit("recv_back", JSON.stringify(data));
               }
             },
             {
@@ -72,7 +77,6 @@ router.route("/msg/init").post((req, res) => {
 
 // emit
 router.route("/msg/emit").post((req, res) => {
-  const { msg } = req.body;
   const exchange = "test2";
 
   amqp.connect("amqp://35.209.178.149:5672", function (error0, connection) {
@@ -87,8 +91,8 @@ router.route("/msg/emit").post((req, res) => {
       channel.assertExchange(exchange, "fanout", {
         durable: false,
       });
-      channel.publish(exchange, "", Buffer.from(msg));
-      console.log(" [x] Sent %s", msg);
+      channel.publish(exchange, "", Buffer.from(JSON.stringify(req.body)));
+      console.log(" [x] Sent %s", req.body.msg);
     });
 
     setTimeout(function () {
@@ -98,10 +102,14 @@ router.route("/msg/emit").post((req, res) => {
   });
 });
 
+app.get("/test", (req, res) => {
+  res.status(200).send({ data: "connect then" });
+});
+
 app.get("/", (req, res) => {
   res.send("UsagiMQ, 2006597701");
 });
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
